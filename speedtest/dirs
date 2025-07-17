@@ -1,0 +1,22 @@
+sftp rust
+https://docs.rs/ssh2/latest/ssh2/struct.Sftp.html
+https://docs.rs/ssh2/latest/ssh2/struct.File.html
+https://doc.rust-lang.org/nightly/std/io/trait.Write.html
+https://stackoverflow.com/questions/74069191/how-to-upload-file-to-sftp-server
+https://docs.rs/ssh2/latest/ssh2/struct.Session.html
+https://docs.rs/ssh2/latest/src/ssh2/session.rs.html#128-130
+https://github.com/basvodde/filezilla/blob/master/src/engine/string_coalescer.cpp
+https://github.com/FreezeTwist/FileZilla-noupdate/blob/main/src/engine/sftp/filetransfer.cpp
+ssh2 rust upload file
+read file rust
+https://doc.rust-lang.org/book/ch12-02-reading-a-file.html
+ssh2:File write stream
+https://stackoverflow.com/questions/57134077/how-can-i-write-a-ssh2stream-to-a-file-without-reading-the-data-into-memory
+
+
+https://metanit.com/rust/tutorial/2.14.php
+upload file sftp cpp
+https://www.example-code.com/cpp/sftp_uploadFile.asp
+sftp cpp
+https://stackoverflow.com/questions/360259/sftp-c-library
+libssh cpp

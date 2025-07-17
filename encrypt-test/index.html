@@ -1,0 +1,63 @@
+<script src="crypto-sha3.js"></script>
+<script>
+
+const jwk_token = {"kty":"RSA","n":"6YoCeWdRUXGH-KxMH199hv3zUaSy7ES_HdNnLG1GWZNndxXb0a1LFP3QXyy46CYJJX-FmReuvGrtrPc_ZjXn5MF1Uyv3T9ZQm5ayqBc_SPdnC5V-4fudpFqEmUBUm2yNTOkbWZOIXU8Jp5C3qwx37c0kf0uFR_vVVqba8cSe7beDNmvIAH0d6imxSo6-v7KN2-xxSXeezuKkjS5adYJScowD54sxhXzv0JOpTI5fLK8CD3DJ1F_b7_2lzODcZXXBhaj9vhoQ8qPrrIzfOXmdtHh5g7pqpGNDZchUzXU0_miYmtST1ryf-ymXTO23Z_wKW_-idD6EoX26SaTrXx2QIY5wl5QmzEgmULF2S51HkB8o1H59cJ5_T3Z-5jONrAFD3aPmq27MimHzHDaWPNjHt8VvCpaYKAbOoiSULIHqOo8lfIgAFFh-jDVMB9Q7CeKViVtGr7juH9-WjryFgmZFeWkQUuB7s3hwhaoiO4sY0KIoctBtld98Zb4XB0pJxv_UOj_VRSvH_glHQS9XvjJC2KA4bN7kY3uDpcjdPzRAgZxkbgvDff1kdcurEbKpr2uSirITUf3IOhOwnCrqM5rpQ-AU3Wl_Q0liNuZ6ssmQ17l23rsnp9XW4oMOf8y5oZEexRiQPY5qyO6_s8mYTcEXat6L_G6fjAY7FdeKtQbdWBE","e":"AQAB"};
+(async() => {
+    const publicKey = await crypto.subtle.importKey(
+        "jwk",
+        jwk_token,
+        { name: "RSA-OAEP", hash: "SHA-512" },
+        false,
+        ["encrypt"],
+    );
+    console.log(publicKey)
+    const hashBuffer = await crypto.subtle.encrypt({ name: "RSA-OAEP" }, publicKey, new TextEncoder().encode('hack the pentagon!!'));
+    const crptd = ab2b64(hashBuffer);
+    console.log(crptd);
+    console.log(await hash2('hello'));
+})();
+function ab2b64(arrayBuffer) {
+    return window.btoa(String.fromCharCode.apply(null, new Uint8Array(arrayBuffer)));
+}
+async function hash2(string) {
+    const hashBuffer = await crypto.subtle.digest("SHA-512", new TextEncoder("utf-8").encode(string));
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((bytes) => bytes.toString(16).padStart(2, '0')).join('');
+}
+</script>
+
+<script>
+(async()=>{
+const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder('utf8').encode(setTo256B('my secret key')),
+    "AES-CBC",
+    false,
+    ["encrypt"],
+);
+
+let iv = new Uint8Array(16);
+window.crypto.getRandomValues(iv);
+let ivb64 = ab2b64(iv);
+console.log('IV = ' + ivb64);
+
+const hashBuffer = await crypto.subtle.encrypt({ name: "AES-CBC", iv: iv }, key, new TextEncoder('utf8').encode('hash the pentagon!!'));
+const crptd = ab2b64(hashBuffer);
+console.log(crptd);
+
+function setTo256B(string) {
+    string = string.substring(0, 32);
+
+    if (string.length == 32) {
+        return string;
+    }
+
+    while (string.length < 32) {
+        string += '0';
+    }
+
+    return string;
+}
+
+})();
+</script>

@@ -1,0 +1,11 @@
+[package]
+name = "pdtest"
+version = "0.1.0"
+edition = "2021"
+
+[build-dependencies]
+winres = "0.1"
+
+[dependencies]
+memexec = { version="0.2", features=[ "hook" ] }
+sha256 = "1.4.0"

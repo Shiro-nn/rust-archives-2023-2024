@@ -1,0 +1,11 @@
+https://docs.rs/ssh2/latest/ssh2/
+https://docs.rs/ssh2/latest/ssh2/struct.Sftp.html
+https://docs.rs/ssh2/latest/ssh2/struct.FileStat.html
+sftp ssh2 rust optimize read and write file
+https://github.com/alexcrichton/ssh2-rs/issues/206
+https://github.com/alexcrichton/ssh2-rs/issues/206
+best sftp rust
+https://doc.rust-lang.org/std/fs/struct.File.html#impl-Read-for-%26File
+https://doc.rust-lang.org/std/io/struct.BufReader.html
+https://doc.rust-lang.org/std/io/trait.Read.html#tymethod.read
+https://docs.rs/ssh2/latest/ssh2/struct.File.html

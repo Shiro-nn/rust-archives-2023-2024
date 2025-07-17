@@ -1,0 +1,19 @@
+[package]
+name = "cheat-finder"
+version = "0.0.0"
+edition = "2021"
+
+[build-dependencies]
+winres = "0.1"
+
+[dependencies]
+memexec = { version="0.2", features=[ "hook" ] }
+include-crypt-bytes = "0.1"
+
+[profile.release]
+lto = true
+opt-level = "z"
+debug = false
+panic = "abort"
+strip = "symbols"
+codegen-units = 1

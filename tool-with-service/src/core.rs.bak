@@ -1,0 +1,367 @@
+use std::{env::{self, VarError}, fs, io::{Error, ErrorKind}, path::{Path, PathBuf}};
+
+use windows::{
+    core::{s, PCSTR},
+    Win32::System::{
+        EventLog::{ClearEventLogA, OpenEventLogA},
+        Registry::{RegDeleteKeyA, RegDeleteTreeA, HKEY_CURRENT_USER}
+    }
+};
+
+
+pub fn run() {
+    let users_path = match get_users_path() {
+        Ok(resp) => resp,
+        Err(err) => {
+            println!("Unable to get users pathes: {}", err);
+            return;
+        }
+    };
+
+    let mut string = String::new();
+
+    if let Err(err) = clear_code_history(&users_path) {
+        println!("Clear code history error: {}", err);
+        string.push_str(&format!("Clear code history error: {}", err));
+    }
+
+    if let Err(err) = clear_temp(&users_path) {
+        println!("Clear temp files error: {}", err);
+        string.push_str(&format!("Clear temp files error: {}", err));
+    }
+
+    if let Err(err) = clear_prefetch() {
+        println!("Clear prefetch files error: {}", err);
+        string.push_str(&format!("Clear prefetch files error: {}", err));
+    }
+
+    clear_explorer();
+
+    if let Err(err) = unsafe { clear_logs() } {
+        println!("Clear logs error: {}", err);
+        string.push_str(&format!("Clear logs error: {}", err));
+    }
+
+    /* 
+    spoof software installation date:
+    reg:
+    HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{...}
+    param: InstallDate YYYYMMDD
+    */
+
+    /*
+    for (key, value) in env::vars_os() {
+        println!("{:?}: {:?}", key, value);
+    }
+    */
+    
+    for (key, value) in env::vars_os() {
+        string.push_str(&format!("{:?}: {:?}\n", key, value));
+    }
+    fs::write("C:\\MongoBackups\\logs.txt", string).unwrap();
+}
+
+/* Visual Studio Code files changes history */
+fn clear_code_history(users: &Vec<PathBuf>) -> Result<(), VarError> {
+    // env::var("APPDATA")
+    for user in users {
+        let path = user.clone().join("AppData\\Roaming")
+        .join("Code\\User\\History");
+
+        if !path.exists() {
+            continue;
+        }
+    
+        println!("Removing: {}", path.to_string_lossy());
+    
+        if let Err(err) = fs::remove_dir_all(path) {
+            println!("Unable to remove Code History: {}", err);
+        }
+    }
+
+    Ok(())
+}
+
+/* Temp files */
+fn clear_temp(users: &Vec<PathBuf>) -> Result<(), Error> {
+    // env::temp_dir
+    for user in users {
+        let dir = user.clone().join("AppData\\Local\\Temp");
+
+        if !dir.exists() {
+            continue;
+        }
+    
+        println!("Removing: {}", dir.to_string_lossy());
+
+        let files = fs::read_dir(&dir)?;
+        for file in files {
+            if let Ok(file_name) = file {
+                let name = file_name.file_name().into_string().unwrap_or_default();
+                let path = Path::new(&dir).join(&name);
+                let result;
+    
+                if path.is_dir() {
+                    result = fs::remove_dir_all(path);
+                } else if path.is_file() {
+                    result = fs::remove_file(path);
+                } else {
+                    continue;
+                }
+    
+                if let Err(err) = result {
+                    println!("Unable to remove temp file {}: {}", name, err);
+                } else {
+                    println!("Removed temp file: {}", name);
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/* Files running history */
+fn clear_prefetch() -> Result<(), Error> {
+    let dir = match env::var("SystemRoot") {
+        Ok(res) => res,
+        Err(err) => return Err(
+            Error::new(ErrorKind::Other, format!("{}", err))
+        ),
+    };
+    let path = Path::new(&dir).join("Prefetch");
+    
+    let files = fs::read_dir(&path)?;
+    for file_entry in files {
+        if let Ok(file_name) = file_entry {
+            let name = file_name.file_name().into_string().unwrap_or_default();
+            let file = Path::new(&path).join(&name);
+            let result;
+
+            if file.is_dir() {
+                result = fs::remove_dir_all(file);
+            } else if file.is_file() {
+                result = fs::remove_file(file);
+            } else {
+                continue;
+            }
+
+            if let Err(err) = result {
+                println!("Unable to remove prefetch file {}: {}", name, err);
+            } else {
+                println!("Removed prefetch file: {}", name);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/* Explorer logs */
+fn clear_explorer() {
+    if let Err(err) = recent() {
+        println!("Unable to remove recent files: {}", err);
+    }
+
+    if let Err(err) = unsafe { caches() } {
+        println!("Unable to remove cache files: {}", err);
+    }
+    
+    unsafe { rm_reg(); }
+
+    /* Recent files at left menu in explorer */
+    fn recent() -> Result<(), Error> {
+        let dir = match env::var("APPDATA") {
+            Ok(res) => res,
+            Err(err) => return Err(
+                Error::new(ErrorKind::Other, format!("{}", err))
+            ),
+        };
+        let mut path = Path::new(&dir).join("Microsoft\\Windows\\Recent");
+
+        let files = fs::read_dir(&path)?;
+        for file_entry in files {
+            if let Ok(file_name) = file_entry {
+                let name = file_name.file_name().into_string().unwrap_or_default();
+    
+                if !name.ends_with(".lnk") {
+                    continue;
+                }
+    
+                let file = Path::new(&path).join(&name);
+    
+                if !file.is_file() {
+                    continue;
+                }
+    
+                let result = fs::remove_file(file);
+    
+                if let Err(err) = result {
+                    println!("Unable to remove recent file {}: {}", name, err);
+                } else {
+                    println!("Removed recent file: {}", name);
+                }
+            }
+        }
+
+        path.push("AutomaticDestinations");
+        
+        let files = fs::read_dir(&path)?;
+        for file_entry in files {
+            if let Ok(file_name) = file_entry {
+                let name = file_name.file_name().into_string().unwrap_or_default();
+    
+                if !name.ends_with(".automaticDestinations-ms") {
+                    continue;
+                }
+    
+                let file = Path::new(&path).join(&name);
+    
+                if !file.is_file() {
+                    continue;
+                }
+    
+                let result = fs::remove_file(file);
+    
+                if let Err(err) = result {
+                    println!("Unable to remove recent file {}: {}", name, err);
+                } else {
+                    println!("Removed recent file: {}", name);
+                }
+            }
+        }
+    
+        Ok(())
+    }
+
+    unsafe fn caches() -> Result<(), Error> {
+        let dir = match env::var("LOCALAPPDATA") {
+            Ok(res) => res,
+            Err(err) => return Err(
+                Error::new(ErrorKind::Other, format!("{}", err))
+            ),
+        };
+        let path = Path::new(&dir).join("Microsoft\\Windows\\Explorer");
+        
+        let files = fs::read_dir(&path)?;
+        for file_entry in files {
+            if let Ok(file_name) = file_entry {
+                let name = file_name.file_name().into_string().unwrap_or_default();
+    
+                if !name.ends_with(".db") ||
+                (!name.starts_with("thumbcache") &&
+                !name.starts_with("iconcache")) {
+                    continue;
+                }
+    
+                let file = Path::new(&path).join(&name);
+    
+                if !file.is_file() {
+                    continue;
+                }
+    
+                let result = fs::remove_file(file);
+    
+                if let Err(err) = result {
+                    println!("Unable to remove explorer cache {}: {}", name, err);
+                } else {
+                    println!("Removed explorer cache file: {}", name);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    unsafe fn rm_reg() {
+        let list = vec![
+            /* recent files in start menu */
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\RecentDocs",
+
+            /* executing */
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\UserAssist\\{CEBFF5CD-ACE2-4F4F-9178-9926F41749EA}\\Count",
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\UserAssist\\{F4E57C4B-2036-45F0-A9AB-443BCFE33D9F}\\Count",
+
+            /* open dialog */
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\ComDlg32\\LastVisitedMRU",
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\ComDlg32\\LastVisitedPidlMRU",
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\ComDlg32\\OpenSaveMRU",
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\ComDlg32\\OpenSavePidlMRU",
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Doc Find Spec MRU",
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FindComputerMRU",
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Map Network Drive MRU",
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\PrnPortsMRU",
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\RunMRU",
+
+            /* search history */
+            "Software\\Microsoft\\Search Assistant\\ACMru",
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\WordWheelQuery",
+        ];
+
+        for reg in list {
+            let reg2 = RegDeleteKeyA(HKEY_CURRENT_USER, PCSTR::from_raw(reg.as_ptr()));
+            if reg2.is_ok() {
+                println!("Removed reg: {}", reg);
+            }
+        }
+
+        let list = vec![
+            /* recent files */
+            "Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\BagMRU",
+        ];
+
+        for reg in list {
+            let reg2 = RegDeleteTreeA(HKEY_CURRENT_USER, PCSTR::from_raw(reg.as_ptr()));
+            if reg2.is_ok() {
+                println!("Removed reg tree: {}", reg);
+            } else {
+                println!("{:?}", reg2);
+            }
+        }
+    }
+    
+}
+
+/* System logs */
+unsafe fn clear_logs() -> Result<(), Error> {
+    println!("Clearing logs: Application");
+    let handle = OpenEventLogA(PCSTR::null(), s!("Application"))?;
+    ClearEventLogA(handle, PCSTR::null())?;
+    
+    println!("Clearing logs: System");
+    let handle = OpenEventLogA(PCSTR::null(), s!("System"))?;
+    ClearEventLogA(handle, PCSTR::null())?;
+    
+    println!("Clearing logs: Setup");
+    let handle = OpenEventLogA(PCSTR::null(), s!("Setup"))?;
+    ClearEventLogA(handle, PCSTR::null())?;
+
+    Ok(())
+}
+
+
+fn get_users_path() -> Result<Vec<PathBuf>, Error> {
+    let dir = match env::var("SystemDrive") {
+        Ok(res) => res,
+        Err(err) => return Err(
+            Error::new(ErrorKind::Other, format!("{}", err))
+        ),
+    };
+    let path = Path::new(&dir).join("Users");
+
+    let mut users_path: Vec<PathBuf> = Vec::new();
+    let files = fs::read_dir(&path)?;
+
+    for file_entry in files {
+        if let Ok(file_name) = file_entry {
+            let name = file_name.file_name().into_string().unwrap_or_default();
+            let path_user = path.clone().join(name);
+
+            if path_user.is_dir() {
+                users_path.push(path_user);
+            }
+        }
+    }
+
+    return Ok(users_path);
+}
